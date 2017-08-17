@@ -25,6 +25,8 @@
 #include <stdlib.h>
 #include <math.h>
 #include "math/Matrix.hpp"
+#include <android/bitmap.h>
+#include <android/log.h>
 
 #define  LOG_TAG    "libgl2jni"
 #define  LOGI(...)  __android_log_print(ANDROID_LOG_INFO,LOG_TAG,__VA_ARGS__)
@@ -44,19 +46,114 @@ static void checkGlError(const char* op) {
 
 auto gVertexShader =
         "attribute vec4 vPosition;\n"
-                "attribute vec4 a_color;\n"
-                "varying vec4 v_fragmentColor;\n"
-                "uniform mat4 rotationMatrixUniform;\n"
-                "void main() {\n"
-                "  gl_Position = rotationMatrixUniform * vPosition;\n"
-                "  v_fragmentColor = a_color;\n"
-                "}\n";
+        "attribute vec4 a_color;\n"
+        "varying vec4 v_fragmentColor;\n"
+        "uniform mat4 rotationMatrixUniform;\n"
+        "attribute vec2 a_TextureCoordinates;\n"
+        "varying vec2 v_TextureCoordinates;\n"
+        "void main() {\n"
+        "  v_TextureCoordinates = a_TextureCoordinates;\n"
+        "  gl_Position = rotationMatrixUniform * vPosition;\n"
+        "}\n";
+
+//"  v_fragmentColor = a_color;\n"
 
 auto gFragmentShader =
         "varying vec4 v_fragmentColor;\n"
-                "void main() {\n"
-                "  gl_FragColor = v_fragmentColor;\n"
-                "}\n";
+        "uniform sampler2D u_TextureUnit;\n"
+        "varying vec2 v_TextureCoordinates;\n"
+        "void main() {\n"
+        "  gl_FragColor = texture2D(u_TextureUnit, v_TextureCoordinates);\n"
+        "}\n";
+
+//"  gl_FragColor = v_fragmentColor;\n"
+
+typedef struct TGAImage {
+    GLubyte *imageData;             //  image data
+    GLuint bpp;                     //  rgb depth
+    GLuint width;                   //  image width
+    GLuint height;                  //  image height
+    GLuint texID;                   //  textures ID
+}TGAImage;
+
+typedef struct tagBITMAPFILEHEADER {
+    unsigned short bfType;
+    unsigned int bfSize;
+    unsigned short bfReserved1;
+    unsigned short bfReserved2;
+    unsigned int bfOffBits;
+} BITMAPFILEHEADER;
+
+typedef struct tagBITMAPINFOHEADER{
+    unsigned int biSize;
+    int biWidth;
+    int biHeight;
+    unsigned short biPlanes;
+    unsigned short biBitCount;
+    unsigned int biCompression;
+    unsigned int biSizeImage;
+    int biXPelsPerMeter;
+    int biYPelsPerMeter;
+    unsigned int biClrUsed;
+    unsigned int biClrImportant;
+} BITMAPINFOHEADER;
+
+/*
+ * read bmp image
+ */
+bool LoadImage( TGAImage *texture, const char * fileName ) {
+
+    GLuint imageSize;
+    GLuint type=GL_RGB;
+    FILE *file;
+    file = fopen( fileName, "rb" );
+    if( file == NULL)
+        return false;
+
+    fseek(file, 14, 0);
+
+    LOGE("Info BITMAPFILEHEADER %d ", sizeof(GLubyte));
+
+    BITMAPINFOHEADER infoHead;
+    fread(&infoHead, sizeof(BITMAPINFOHEADER), 1, file);
+    texture->width = infoHead.biWidth;
+    texture->height = infoHead.biHeight;
+    imageSize = infoHead.biSizeImage;
+
+    LOGI("Info Info ");
+    LOGE("Info width %d ", infoHead.biWidth);
+    LOGE("Info height %d ", texture->height);
+    LOGE("Info imageSize %d ", imageSize);
+
+    texture->imageData = new GLubyte[imageSize];
+
+    fread(texture->imageData, sizeof(GLubyte), imageSize, file);
+
+    for(int i = 0; i < imageSize; i += 3) {
+        GLubyte temp = texture->imageData[i];
+        texture->imageData[i] = texture->imageData[i + 2];
+        texture->imageData[i + 2] = temp;
+    }
+
+    LOGE("Info R %d ", texture->imageData[0]);
+    LOGE("Info G %d ", texture->imageData[1]);
+    LOGE("Info B %d ", texture->imageData[2]);
+
+    fclose( file );
+
+    glGenTextures( 1, &texture->texID );
+    glBindTexture( GL_TEXTURE_2D, texture->texID );
+    glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+    glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+    glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT );
+    glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT );
+
+    glTexImage2D( GL_TEXTURE_2D, 0, type, texture->width, texture->height, 0, type, GL_UNSIGNED_BYTE, texture->imageData );
+
+    glBindTexture( GL_TEXTURE_2D, 0);
+    return true;
+
+}
 
 GLuint loadShader(GLenum shaderType, const char* pSource) {
     GLuint shader = glCreateShader(shaderType);
@@ -119,6 +216,9 @@ GLuint createProgram(const char* pVertexSource, const char* pFragmentSource) {
             program = 0;
         }
     }
+
+    //glGetUniformLocation("")
+
     return program;
 }
 
@@ -126,13 +226,21 @@ GLuint gProgram;
 GLuint a_color;
 GLuint vPosition;
 GLuint rotationMatrixUniform;
+GLuint u_TextureUnit;
+GLuint a_TextureCoordinates;
 mj2::Matrix4x4 modelMatrix;
 mj2::Matrix4x4 rotationMatrix;
+TGAImage texture2d;
 
 bool setupGraphics(int w, int h) {
+
+
+
+    LoadImage( &texture2d, "/sdcard/lena512.bmp" );
+
     modelMatrix.SetIdentity();
     rotationMatrix.SetIdentity();
-    rotationMatrix = rotationMatrix.RotationY( 3.14f / 180.0f );
+    rotationMatrix = rotationMatrix.RotationX( 3.14f / 180.0f );
 
 
     printGLString("Version", GL_VERSION);
@@ -156,14 +264,20 @@ bool setupGraphics(int w, int h) {
     LOGI("glGetAttribLocation(\"a_color\") = %d\n",
          a_color);
 
+    a_TextureCoordinates = glGetAttribLocation(gProgram, "a_TextureCoordinates");
+    checkGlError("glGetAttribLocation");
+    LOGI("glGetAttribLocation(\"a_TextureCoordinates\") = %d\n",
+         a_TextureCoordinates);
+
     rotationMatrixUniform = glGetUniformLocation(gProgram, "rotationMatrixUniform");
     checkGlError("glGetUniformLocation");
     LOGI("glGetUniformLocation(\"rotationMatrixUniform\") = %d\n",
          rotationMatrixUniform);
 
-    // create rotation matrix
-    //
-    //float rotationMatrix[16] = {};
+    u_TextureUnit = glGetUniformLocation(gProgram, "u_TextureUnit");
+    checkGlError("glGetUniformLocation");
+    LOGI("glGetUniformLocation(\"u_TextureUnit\") = %d\n",
+         u_TextureUnit);
 
     glViewport(0, 0, w, h);
     checkGlError("glViewport");
@@ -171,13 +285,18 @@ bool setupGraphics(int w, int h) {
     // cull face
     glEnable( GL_CULL_FACE );
     glCullFace( GL_FRONT );
-    //逆时针---正面
-    //顺时针---背面
+    //逆时针---正面---GL_CULL_FACE
+    //顺时针---背面---GL_FRONT
 
     return true;
 }
 
-GLfloat _r = 3.1415926f / 18.0f;
+const GLfloat textureArrays[] = { 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f,
+                                  0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f,
+                                  0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f,
+                                  0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f,
+                                  0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f,
+                                  0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f };
 
 GLfloat gTriangleVertices[] = { -0.25f, -0.25f,  -0.25f, 1.0f,
                                 0.25f, -0.25f,  -0.25f, 1.0f,
@@ -200,26 +319,26 @@ GLfloat gTriangleVertices[] = { -0.25f, -0.25f,  -0.25f, 1.0f,
                                 -0.25f,  0.25f, 0.25f, 1.0f,
                                 -0.25f, 0.25f, -0.25f, 1.0f,
 
-                                0.25f,  0.25f, -0.25f, 1.0f,
-                                -0.25f,  0.25f,  0.25f, 1.0f,
-                                0.25f,  0.25f,  0.25f, 1.0f, //4
-                                0.25f,  0.25f, -0.25f, 1.0f,
-                                -0.25f,  0.25f, -0.25f, 1.0f,
-                                -0.25f,  0.25f,  0.25f, 1.0f,
-
-                                0.25f,  0.25f, -0.25f, 1.0f,
+                                -0.25f,  0.25f, 0.25f, 1.0f,
                                 0.25f,  0.25f,  0.25f, 1.0f,
-                                0.25f, -0.25f,  0.25f, 1.0f, //5
+                                0.25f,  0.25f,  -0.25f, 1.0f, //4
+                                -0.25f,  0.25f, 0.25f, 1.0f,
                                 0.25f,  0.25f, -0.25f, 1.0f,
-                                0.25f, -0.25f,  0.25f, 1.0f,
-                                0.25f, -0.25f, -0.25f, 1.0f,
+                                -0.25f,  0.25f,  -0.25f, 1.0f,
 
-                                0.25f,  0.25f, -0.25f, 1.0f,
+                                0.25f,  -0.25f, 0.25f, 1.0f,
+                                0.25f,  -0.25f,  -0.25f, 1.0f,
+                                0.25f, 0.25f,  -0.25f, 1.0f, //5
+                                0.25f,  -0.25f, 0.25f, 1.0f,
+                                0.25f, 0.25f,  -0.25f, 1.0f,
+                                0.25f, 0.25f, 0.25f, 1.0f,
+
                                 0.25f,  -0.25f, -0.25f, 1.0f,
-                                -0.25f, -0.25f, -0.25f, 1.0f, //6
-                                0.25f,  0.25f, -0.25f, 1.0f,
-                                -0.25f, -0.25f, -0.25f, 1.0f,
-                                -0.25f, 0.25f, -0.25f, 1.0f };
+                                -0.25f,  -0.25f, -0.25f, 1.0f,
+                                -0.25f, 0.25f, -0.25f, 1.0f, //6
+                                0.25f,  -0.25f, -0.25f, 1.0f,
+                                -0.25f, 0.25f, -0.25f, 1.0f,
+                                0.25f, 0.25f, -0.25f, 1.0f };
 
 const GLfloat gTriangleColors[] = {     0.583f, 0.771f, 0.014f, 1.0f,
                                         0.609f, 0.115f, 0.436f, 1.0f,
@@ -297,6 +416,16 @@ void renderFrame() {
     glUniformMatrix4fv(rotationMatrixUniform, 1, GL_FALSE, &modelMatrix.m[0][0]);
     checkGlError("glUniformMatrix4fv");
 
+    // Texture
+    glActiveTexture( GL_TEXTURE0 );
+    glBindTexture(GL_TEXTURE_2D, texture2d.texID );
+    glUniform1i(u_TextureUnit, 0);
+
+    glVertexAttribPointer(a_TextureCoordinates, 2, GL_FLOAT, GL_FALSE, 0, textureArrays);
+    checkGlError("glVertexAttribPointer");
+    glEnableVertexAttribArray(a_TextureCoordinates);
+    checkGlError("glEnableVertexAttribArray");
+
     glDrawArrays(GL_TRIANGLES, 0, 36);
 
     checkGlError("glDrawArrays");
@@ -319,13 +448,3 @@ JNIEXPORT void JNICALL Java_com_android_gl2jni_GL2JNILib_step(JNIEnv * env, jobj
     renderFrame();
 
 }
-
-
-//rotationMatrix[0] = cosf(_r);
-//rotationMatrix[2] = -sinf(_r);
-//rotationMatrix[8] = sinf(_r);
-//rotationMatrix[10] = cosf(_r);
-//_r = _r + 0.005f;
-//if( _r > 314 ) {
-//    _r = 0.0f;
-//}
