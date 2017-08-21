@@ -46,25 +46,25 @@ static void checkGlError(const char* op) {
 
 auto gVertexShader =
         "attribute vec4 vPosition;\n"
-        "attribute vec4 a_color;\n"
-        "varying vec4 v_fragmentColor;\n"
-        "uniform mat4 rotationMatrixUniform;\n"
-        "attribute vec2 a_TextureCoordinates;\n"
-        "varying vec2 v_TextureCoordinates;\n"
-        "void main() {\n"
-        "  v_TextureCoordinates = a_TextureCoordinates;\n"
-        "  gl_Position = rotationMatrixUniform * vPosition;\n"
-        "}\n";
+                "attribute vec4 a_color;\n"
+                "varying vec4 v_fragmentColor;\n"
+                "uniform mat4 rotationMatrixUniform;\n"
+                "attribute vec2 a_TextureCoordinates;\n"
+                "varying vec2 v_TextureCoordinates;\n"
+                "void main() {\n"
+                "  v_TextureCoordinates = a_TextureCoordinates;\n"
+                "  gl_Position = rotationMatrixUniform * vPosition;\n"
+                "}\n";
 
 //"  v_fragmentColor = a_color;\n"
 
 auto gFragmentShader =
         "varying vec4 v_fragmentColor;\n"
-        "uniform sampler2D u_TextureUnit;\n"
-        "varying vec2 v_TextureCoordinates;\n"
-        "void main() {\n"
-        "  gl_FragColor = texture2D(u_TextureUnit, v_TextureCoordinates);\n"
-        "}\n";
+                "uniform sampler2D u_TextureUnit;\n"
+                "varying vec2 v_TextureCoordinates;\n"
+                "void main() {\n"
+                "  gl_FragColor = texture2D(u_TextureUnit, v_TextureCoordinates);\n"
+                "}\n";
 
 //"  gl_FragColor = v_fragmentColor;\n"
 
@@ -102,7 +102,6 @@ typedef struct tagBITMAPINFOHEADER{
  * FBO
  */
 GLuint framebuffersID;
-GLuint depthBufferNameID;
 
 /*
  * read bmp image
@@ -157,20 +156,20 @@ bool LoadImage( TGAImage *texture, const char * fileName ) {
     glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT );
     glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT );
 
-    glTexImage2D( GL_TEXTURE_2D, 0, GL_RGB, texture->width, texture->height, 0, GL_RGB, GL_UNSIGNED_BYTE, texture->imageData );
+    glTexImage2D( GL_TEXTURE_2D, 0, type, texture->width, texture->height, 0, type, GL_UNSIGNED_BYTE, texture->imageData );
 
     /*
-     * FBO
+     * BFO
      */
     //glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture->texID, 0);
-    //glBindFramebuffer(GL_FRAMEBUFFER, 0);
     //if( glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE ) {
     //    LOGE("glCheckFramebufferStatus ERROR!");
     //    return false;
     //}
-    //glTexImage2D( GL_TEXTURE_2D, 0, type, texture->width, texture->height, 0, type, GL_UNSIGNED_BYTE, texture->imageData );
-    //glBindTexture( GL_TEXTURE_2D, 0);
     //glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    glBindTexture( GL_TEXTURE_2D, 0);
+
 
     return true;
 
@@ -191,7 +190,7 @@ GLuint loadShader( GLenum shaderType, const char* pSource ) {
                 if ( buf ) {
                     glGetShaderInfoLog( shader, infoLen, NULL, buf );
                     LOGE( "Could not compile shader %d:\n%s\n",
-                         shaderType, buf );
+                          shaderType, buf );
                     free( buf );
                 }
                 glDeleteShader( shader );
@@ -255,19 +254,14 @@ TGAImage texture2d;
 
 bool setupGraphics( int w, int h ) {
 
-    if ( LoadImage( &texture2d, "/sdcard/lena512.bmp" ) == false ) {
-        LOGE("INFO : ERROR!");
-    }
 
-    glGenFramebuffers(1, &framebuffersID);
-    glBindFramebuffer(GL_FRAMEBUFFER, framebuffersID);
-    glGenRenderbuffers(1, &depthBufferNameID);
-    glBindRenderbuffer(GL_RENDERBUFFER, depthBufferNameID);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32_OES, texture2d.width, texture2d.height);
+
+    LoadImage( &texture2d, "/sdcard/lena512.bmp" );
 
     modelMatrix.SetIdentity();
     rotationMatrix.SetIdentity();
     rotationMatrix = rotationMatrix.RotationY( 3.14f / 180.0f );
+
 
     printGLString( "Version", GL_VERSION );
     printGLString( "Vendor", GL_VENDOR );
@@ -283,27 +277,27 @@ bool setupGraphics( int w, int h ) {
     vPosition = glGetAttribLocation( gProgram, "vPosition" );
     checkGlError( "glGetAttribLocation" );
     LOGI( "glGetAttribLocation(\"vPosition\") = %d\n",
-         vPosition );
+          vPosition );
 
     a_color = glGetAttribLocation( gProgram, "a_color" );
     checkGlError( "glGetAttribLocation" );
     LOGI( "glGetAttribLocation(\"a_color\") = %d\n",
-         a_color );
+          a_color );
 
     a_TextureCoordinates = glGetAttribLocation( gProgram, "a_TextureCoordinates" );
     checkGlError( "glGetAttribLocation" );
     LOGI( "glGetAttribLocation(\"a_TextureCoordinates\") = %d\n",
-         a_TextureCoordinates );
+          a_TextureCoordinates );
 
     rotationMatrixUniform = glGetUniformLocation( gProgram, "rotationMatrixUniform" );
     checkGlError( "glGetUniformLocation" );
     LOGI( "glGetUniformLocation(\"rotationMatrixUniform\") = %d\n",
-         rotationMatrixUniform );
+          rotationMatrixUniform );
 
     u_TextureUnit = glGetUniformLocation( gProgram, "u_TextureUnit" );
     checkGlError( "glGetUniformLocation" );
     LOGI( "glGetUniformLocation(\"u_TextureUnit\") = %d\n",
-         u_TextureUnit );
+          u_TextureUnit );
 
     glViewport( 0, 0, w, h );
     checkGlError( "glViewport" );
@@ -325,17 +319,17 @@ const GLfloat textureArrays[] = { 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f
                                   0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f };
 
 GLfloat gTriangleVertices[] = { -0.25f, -0.25f, -0.25f, 1.0f,
-                                 0.25f, -0.25f, -0.25f, 1.0f,
-                                 0.25f, -0.25f,  0.25f, 1.0f, // 1
+                                0.25f, -0.25f, -0.25f, 1.0f,
+                                0.25f, -0.25f,  0.25f, 1.0f, // 1
                                 -0.25f, -0.25f, -0.25f, 1.0f,
-                                 0.25f, -0.25f,  0.25f, 1.0f,
+                                0.25f, -0.25f,  0.25f, 1.0f,
                                 -0.25f, -0.25f,  0.25f, 1.0f,
 
                                 -0.25f, -0.25f,  0.25f, 1.0f,
-                                 0.25f, -0.25f,  0.25f, 1.0f,
-                                 0.25f,  0.25f,  0.25f, 1.0f,// 2
+                                0.25f, -0.25f,  0.25f, 1.0f,
+                                0.25f,  0.25f,  0.25f, 1.0f,// 2
                                 -0.25f, -0.25f,  0.25f, 1.0f,
-                                 0.25f,  0.25f,  0.25f, 1.0f,
+                                0.25f,  0.25f,  0.25f, 1.0f,
                                 -0.25f,  0.25f,  0.25f, 1.0f,
 
                                 -0.25f, -0.25f, -0.25f, 1.0f,
@@ -346,25 +340,25 @@ GLfloat gTriangleVertices[] = { -0.25f, -0.25f, -0.25f, 1.0f,
                                 -0.25f,  0.25f, -0.25f, 1.0f,
 
                                 -0.25f,  0.25f,  0.25f, 1.0f,
-                                 0.25f,  0.25f,  0.25f, 1.0f,
-                                 0.25f,  0.25f, -0.25f, 1.0f, //4
+                                0.25f,  0.25f,  0.25f, 1.0f,
+                                0.25f,  0.25f, -0.25f, 1.0f, //4
                                 -0.25f,  0.25f,  0.25f, 1.0f,
-                                 0.25f,  0.25f, -0.25f, 1.0f,
+                                0.25f,  0.25f, -0.25f, 1.0f,
                                 -0.25f,  0.25f, -0.25f, 1.0f,
 
-                                 0.25f, -0.25f,  0.25f, 1.0f,
-                                 0.25f, -0.25f, -0.25f, 1.0f,
-                                 0.25f,  0.25f, -0.25f, 1.0f, //5
-                                 0.25f, -0.25f,  0.25f, 1.0f,
-                                 0.25f,  0.25f, -0.25f, 1.0f,
-                                 0.25f,  0.25f,  0.25f, 1.0f,
+                                0.25f, -0.25f,  0.25f, 1.0f,
+                                0.25f, -0.25f, -0.25f, 1.0f,
+                                0.25f,  0.25f, -0.25f, 1.0f, //5
+                                0.25f, -0.25f,  0.25f, 1.0f,
+                                0.25f,  0.25f, -0.25f, 1.0f,
+                                0.25f,  0.25f,  0.25f, 1.0f,
 
-                                 0.25f, -0.25f, -0.25f, 1.0f,
+                                0.25f, -0.25f, -0.25f, 1.0f,
                                 -0.25f, -0.25f, -0.25f, 1.0f,
                                 -0.25f,  0.25f, -0.25f, 1.0f, //6
-                                 0.25f, -0.25f, -0.25f, 1.0f,
+                                0.25f, -0.25f, -0.25f, 1.0f,
                                 -0.25f,  0.25f, -0.25f, 1.0f,
-                                 0.25f,  0.25f, -0.25f, 1.0f };
+                                0.25f,  0.25f, -0.25f, 1.0f };
 
 const GLfloat gTriangleColors[] = {     0.583f, 0.771f, 0.014f, 1.0f,
                                         0.609f, 0.115f, 0.436f, 1.0f,
@@ -408,16 +402,24 @@ const GLfloat gTriangleColors[] = {     0.583f, 0.771f, 0.014f, 1.0f,
                                         0.820f, 0.883f, 0.371f, 1.0f,
                                         0.982f, 0.099f, 0.879f, 1.0f };
 
+//float rotationMatrix[16] = { 1.0f,      0.0f,     0.0f, 0.0f, //X
+//                             0.0f,  cosf(_r), sinf(_r), 0.0f,
+//                             0.0f, -sinf(_r), cosf(_r), 0.0f,
+//                             0.0f,      0.0f,     0.0f, 1.0f };
+//const float rotationMatrix[16] = {  cosf(_r), 0.0f, -sinf(_r), 0.0f, //Y
+//                                        0.0f, 1.0f,     0.0f, 0.0f,
+//                                   sinf(_r), 0.0f, cosf(_r), 0.0f,
+//                                        0.0f, 0.0f,     0.0f, 1.0f };
+//const float rotationMatrix[16] = {  cosf(_r), 0.0f, -sinf(_r), 0.0f, //Y
+//                                         0.0f, 1.0f,      0.0f, 0.0f,
+//                                     sinf(_r), 0.0f,  cosf(_r), 0.0f,
+//                                         0.0f, 0.0f,      0.0f, 1.0f };
+
 void renderFrame() {
 
-    glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture2d.texID, 0 );
-    glFramebufferRenderbuffer( GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthBufferNameID );
-    //glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glBindFramebuffer( GL_FRAMEBUFFER, framebuffersID );
-
-    glClearColor( 1.0f,  1.0f,  1.0f, 1.0f );
+    glClearColor( 1.0f,  1.0f,  1.0f, 1.0f);
     checkGlError( "glClearColor" );
-    glClear( GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT );
+    glClear( GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
     checkGlError( "glClear" );
 
     glUseProgram( gProgram );
